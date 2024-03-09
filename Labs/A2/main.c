@@ -3,54 +3,87 @@
 #include <locale.h>
 
 
-void asm_calculate(int8_t x, int16_t y, int16_t z) {
-    int8_t v;
+int16_t asm_calculate(int16_t x, int8_t y, int8_t z) {
+    int16_t v;
+
+    if(y == 1) {
+        return 5;
+    }
+
     __asm {
+        // Очищаем регистры
+        xor ax, ax;
+        xor bx, bx;
+
         // Вычисление числителя
-        mov al, z    // ax := x
-        cbw          // Расширить al до 16-ти битного регистра
-        add ax 2     // ax := ax + 2
-        imul x       // ax = x * ax
-        neg ax       // ax := -ax
-        add ax, 3    // ax := ax + 3
-        mov bx, ax   // bx := ax
+        mov al, z;   // Так как z - байт, загружаем его в малый регистр
+        cbw;         // Расширяем регистр до 16 бит, так как дальше будем работать со словами
+        add ax, 2;   // Прибавляем к регистру 2
+        neg ax;      // Инвертируем число (то есть ax := -ax)
+
+        mov bx, x;   // Помещаем слово x в регистр bx
+        imul bx;     // Умножаем регистр ax на bx. Получаем на выходе двойное слово
+
+        add ax, 3;   // Прибавляем к ax 3
+        sbb dx, 0;   // Вычитаем флаг переноса из dx, так как пара ax:dx участвует в делении
+        mov bx, ax;  // Помещаем значения из ax в bx
+    
         // Вычисление знаменателя
-        xor ax, ax   // ax := XOR(ax, ax)
-        mov al, y    // al := y
-        cbw          // Расширить al до 16-ти битного регистра
-        sub ax, 1    // ax := ax - 1
+        xor ax, ax;  // Очищаем регистр ax
+        mov al, y;   // Помещаем байт y в al
+        cbw;         // Расширяем al до двойного слова
+        sub ax, 1;   // Вычитаем из ax 1
+
         // Деление
-        xchng ax, bx // ax <=> bx
-        idiv bx      // ax := ax / bx (Знаковое деление)
-        add ax, 5    // ax := ax  + 5
-        mov v, ax    // v := ax
+        xchg ax, bx;  // Меняем местами ax и bx
+        cwd;          // Расширяем до двойного слова
+        idiv bx;      // Делим ax:dx на bx
+        add ax, 5     // прибавляем к ax 5
+
+        mov v, ax     // Помещаем в v ax
     };
     return v;
 }
 
 
-int8_t c_calculate(int8_t x, int16_t y, int16_t z) {
-    return 5 + ( 3 - (z + 2) * x ) / (y - 1);
+int16_t c_calculate(int16_t x, int8_t y, int8_t z) {
+    int16_t num, div;
+
+    if(y == 1) {
+        return 5;
+    }
+
+    num = 3 - (z + 2) * x;
+    div = y - 1;
+    return 5 + num / div;
 }
 
 
-void run_test(int8_t x, int16_t y, int16_t z, int8_t v) {
-    int8_t v_tmp;
+void run_test(int16_t x, int8_t y, int8_t z, int16_t v) {
+    int8_t v_c, v_asm;
 
-    printf("Ввод:\n\tx:= %hd\ty:= %hd\tx:=%hd\n", x, y, z);
+    printf("Ввод:\n\tx := %hd\n\ty := %hd\n\tz := %hd\n", x, y, z);
 
     printf("Правильный результат:\n\tv:= %hd\n", v);
 
-    v_tmp = c_calculate(x, y, z)
-    printf("Вычисления в Си:\n\tДесяитичная: %hd\tШестнадцатеричная: 0x%04x\n\n", v_tmp, v_tmp);
+    v_c = c_calculate(x, y, z);
+    printf("Вычисления в Си:\n\tДесяитичная: %hd\n\tШестнадцатеричная: 0x%04x\n\n", v_c, v_c);
 
-    v_tmp = asm_calculate(x, y, z)
-    printf("Вычисления в Ассемблере:\n\tДесятичная: %hd\tШестнадцатеричная: 0x%04x\n\n", v_tmp, v_tmp);
+    v_asm = asm_calculate(x, y, z);
+    printf("Вычисления в Ассемблере:\n\tДесятичная: %hd\n\tШестнадцатеричная: 0x%04x\n\n", v_asm, v_asm);
+    if(v_asm != v) {
+        printf("Тест не пройден!\n\n");
+    }
+    else {
+        printf("Тест пройден!\n\n");
+    }
+
 }
 
 
 int main() {
-    int8_t x, int16_t y, int16_t z;
+    int8_t y, z;
+    int16_t x, v;
     char ans;
 
     setlocale(LC_ALL, "Russian");
@@ -61,18 +94,16 @@ int main() {
     printf("Тест #2\n");
     run_test(0x7BE, -0x7E, 0x7E, 0x7D2);
 
-    printf("Все тесты пройдены!\n");
+    printf("Продолжить ручное тестирование? (y/n):\t");
+    scanf(" %c", &ans);
 
-    printf("Продолжить ручное тестирование? (д/н):\t");
-    scanf("%s", &ans);
+    while(ans != 'n') {
+        printf("\nВведите x, y, z, v через пробел\n");
+        scanf("%hd %hhd %hhd %hd", &x, &y, &z, &v);
+        run_test(x, y, z, v);
 
-    while(ans == 'д') {
-        printf("\nВведите x, y, z через пробел\n");
-        scanf("%hhd %hhd %hhd", &x, &y, &z);
-        run_test(x, y, z);
-
-        printf("Продолжить тестирование? (д/н):\t ");
-        scanf("%s", &ans);
+        printf("Продолжить тестирование? (y/n):\t ");
+        scanf(" %c", &ans);
     }
 
     return 0;
